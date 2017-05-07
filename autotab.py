@@ -76,16 +76,16 @@ class AutoTab(GObject.Object, Gedit.WindowActivatable):
     loaded_id = doc.connect_after("loaded", self.auto_tab, view)
     saved_id  = doc.connect_after("saved", self.auto_tab, view)
     pasted_id = view.connect("paste-clipboard", self.on_paste)
-    #doc.AutoTabPluginHandlerIds = (loaded_id, saved_id, pasted_id)
-    doc.AutoTabPluginHandlerIds = (loaded_id, saved_id)
+    doc.AutoTabPluginHandlerIds = (loaded_id, saved_id, pasted_id)
+    #doc.AutoTabPluginHandlerIds = (loaded_id, saved_id)
 
   def disconnect_handlers(self, view):
     doc = view.get_buffer()
-    #loaded_id, saved_id, pasted_id = doc.AutoTabPluginHandlerIds
-    loaded_id, saved_id = doc.AutoTabPluginHandlerIds
+    loaded_id, saved_id, pasted_id = doc.AutoTabPluginHandlerIds
+    #loaded_id, saved_id = doc.AutoTabPluginHandlerIds
     doc.disconnect(loaded_id)
     doc.disconnect(saved_id)
-    #view.disconnect(pasted_id)
+    view.disconnect(pasted_id)
     doc.AutoTabPluginHandlerIds = None
 
   def on_clipboard_text(self, clipboard, text, view):
