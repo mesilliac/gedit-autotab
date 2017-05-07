@@ -22,13 +22,22 @@
 
 from gi.repository import GObject, Gio, Gedit
 from gi.repository import Gtk, Gdk
+from gi.repository import PeasGtk
 import operator
+import os
+import configparser
+
+config_location = os.path.expanduser("~/.config/gedit/autotab")
 
 # Main class
-class AutoTab(GObject.Object, Gedit.WindowActivatable):
+class AutoTab(GObject.Object, Gedit.WindowActivatable, PeasGtk.Configurable):
   __gtype_name__ = "AutoTab"
 
   window = GObject.property(type=Gedit.Window)
+
+  # global autotab settings
+  guess_tabs = True
+  convert_paste = True
 
   def do_activate(self):
     self.spaces_instead_of_tabs = False
@@ -46,6 +55,9 @@ class AutoTab(GObject.Object, Gedit.WindowActivatable):
 
     settings.connect("changed::tabs-size", self.new_tabs_size)
     settings.connect("changed::insert-spaces", self.new_insert_spaces)
+
+    # load plugin settings, if possible
+    self.load_plugin_settings()
 
     for view in self.window.get_views():
       self.connect_handlers(view)
@@ -68,6 +80,56 @@ class AutoTab(GObject.Object, Gedit.WindowActivatable):
       else:
         self.statusbar.remove(self.context_id, self.message_id)
 
+    self.save_plugin_settings()
+
+  def do_create_configure_widget(self):
+    self.load_plugin_settings()
+    widget = Gtk.VBox(border_width=6)
+    guess_tabs = Gtk.CheckButton.new_with_label("Guess Document Indentation")
+    convert_paste = Gtk.CheckButton.new_with_label("Convert Clipboard Text")
+    guess_tabs.set_active(AutoTab.guess_tabs)
+    convert_paste.set_active(AutoTab.convert_paste)
+    guess_tabs.connect("toggled", self.on_option_toggle, "guess_tabs")
+    convert_paste.connect("toggled", self.on_option_toggle, "convert_paste")
+    widget.add(guess_tabs)
+    widget.add(convert_paste)
+    return widget
+
+  def load_plugin_settings(self):
+    if not os.path.exists(config_location):
+      # use default settings
+      return
+
+    schema_name = "org.gnome.gedit.plugins.autotab"
+    config = configparser.ConfigParser()
+    config.read(config_location)
+    if not schema_name in config:
+      return
+
+    settings = config[schema_name]
+    if "guess-tabs" in settings:
+      AutoTab.guess_tabs = settings.getboolean("guess-tabs")
+    if "convert-paste" in settings:
+      AutoTab.convert_paste = settings.getboolean("convert-paste")
+
+  def save_plugin_settings(self):
+    schema_name = "org.gnome.gedit.plugins.autotab"
+    config = configparser.ConfigParser()
+    config[schema_name] = {}
+
+    yesno = lambda name: 'yes' if getattr(AutoTab, name) else 'no'
+    config[schema_name]["guess-tabs"] = yesno("guess_tabs")
+    config[schema_name]["convert-paste"] = yesno("convert_paste")
+
+    if not os.path.exists(os.path.dirname(config_location)):
+      os.makedirs(os.path.dirname(config_location))
+    with open(config_location, 'w') as configfile:
+      config.write(configfile)
+
+  def on_option_toggle(self, widget, name):
+    state = True if widget.get_active() else False
+    setattr(AutoTab, name, state)
+    self.save_plugin_settings()
 
   def connect_handlers(self, view):
     doc = view.get_buffer()
@@ -177,6 +239,8 @@ class AutoTab(GObject.Object, Gedit.WindowActivatable):
 
   # capture paste
   def on_paste(self, view):
+    if not self.convert_paste:
+      return
     clipboard = Gtk.Clipboard.get_for_display(view.get_display(), Gdk.SELECTION_CLIPBOARD)
     clipboard.request_text(self.on_clipboard_text, view)
     view.stop_emission('paste-clipboard')
@@ -236,6 +300,12 @@ class AutoTab(GObject.Object, Gedit.WindowActivatable):
 
     if error is not None:
       pass
+
+    # Tab identification can be turned off by a global setting.
+    # This is useful because one can still use the paste funtionality.
+    if not AutoTab.guess_tabs:
+      self.update_status()
+      return
 
     # Other plugins compatibility, other plugins can do
     # view.AutoTabSkip = True
