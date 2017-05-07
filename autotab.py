@@ -192,16 +192,18 @@ class AutoTab(GObject.Object, Gedit.WindowActivatable):
     self.update_tabs(self.tabs_width, self.spaces_instead_of_tabs)
 
   # Update the values and set a new statusbar message
-  def update_tabs(self, size, space):
-    view = self.window.get_active_view()
+  def update_tabs(self, size, space, view=None):
+    if view is None:
+      view = self.window.get_active_view()
     if view:
       view.set_tab_width(size)
       view.set_insert_spaces_instead_of_tabs(space)
-      self.update_status()
+      self.update_status(view)
 
   # Statusbar message
-  def update_status(self):
-    view = self.window.get_active_view()
+  def update_status(self, view=None):
+    if view is None:
+      view = self.window.get_active_view()
     if view:
       space = view.get_insert_spaces_instead_of_tabs()
       size = view.get_tab_width()
@@ -256,7 +258,7 @@ class AutoTab(GObject.Object, Gedit.WindowActivatable):
 
     # Special case for makefiles, so the plugin uses tabs even for the empty file:
     if doc.get_mime_type() == "text/x-makefile" or doc.get_short_name_for_display() == "Makefile":
-      self.update_tabs(self.tabs_width, False)
+      self.update_tabs(self.tabs_width, False, view)
       return
 
     start, end = doc.get_bounds()
@@ -309,9 +311,9 @@ class AutoTab(GObject.Object, Gedit.WindowActivatable):
       # can't guess at size, so using default
       if seen_tabs or seen_spaces:
         if seen_tabs > seen_spaces:
-          self.update_tabs(self.tabs_width, False)
+          self.update_tabs(self.tabs_width, False, view)
         else:
-          self.update_tabs(self.tabs_width, True)
+          self.update_tabs(self.tabs_width, True, view)
       return
 
     winner = None
@@ -322,6 +324,6 @@ class AutoTab(GObject.Object, Gedit.WindowActivatable):
         winner = key
 
     if winner == 'tabs':
-      self.update_tabs(self.tabs_width, False)
+      self.update_tabs(self.tabs_width, False, view)
     else:
-      self.update_tabs(winner, True)
+      self.update_tabs(winner, True, view)
